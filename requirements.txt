@@ -1,0 +1,2 @@
+streamlit
+pyarrow>=22.0.0
