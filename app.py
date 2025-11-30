@@ -1,33 +1,71 @@
 import streamlit as st
 
-def calculate_nutrition(weight, distance, elevation, intensity):
-    # Coefficients based on intensity
-    coefficients = {
-        "ポタリング": 3.0,
-        "トレーニング": 3.8,
-        "レース": 4.5
-    }
+def calculate_nutrition(weight, distance, elevation, temperature, speed):
+    # Coefficients and Rates based on Speed
+    if speed < 20:
+        coeff = 0.35
+        carb_rate = 30.0
+    elif 20 <= speed < 28:
+        coeff = 0.45
+        carb_rate = 50.0
+    else: # >= 28
+        coeff = 0.60
+        carb_rate = 70.0
     
-    coeff = coefficients.get(intensity, 3.0)
+    # Calculate Duration (hours)
+    if distance > 0 and speed > 0:
+        duration_hours = distance / speed
+    else:
+        duration_hours = 0.0
+        
+    # Format Duration String
+    hours = int(duration_hours)
+    minutes = int((duration_hours - hours) * 60)
+    time_str = f"{hours}時間{minutes}分"
     
-    # Calculate Base Burn
+    # Calculate Base Burn (Calories)
     base_burn = weight * distance * coeff
     
-    # Calculate Climb Burn
-    climb_burn = elevation * weight * 0.05
+    # Calculate Climb Burn (Calories)
+    climb_burn = weight * elevation * 0.006
     
     # Total Calories
     total_kcal = base_burn + climb_burn
     
     # Required Carbs (g)
-    # Total Kcal * 50% / 4 kcal/g
-    carbs_g = (total_kcal * 0.5) / 4
+    # Based on hourly rate
+    carbs_g = duration_hours * carb_rate
     
     # Required Water (ml)
-    # Proposed logic: Distance * 20ml
-    water_ml = distance * 20
+    # Based on temperature
+    if temperature < 15:
+        water_rate = 350
+    elif 15 <= temperature < 25:
+        water_rate = 500
+    elif 25 <= temperature < 30:
+        water_rate = 750
+    else: # >= 30
+        water_rate = 1000
+        
+    water_ml = duration_hours * water_rate
     
-    return total_kcal, water_ml, carbs_g
+    return total_kcal, water_ml, carbs_g, time_str
+
+def calculate_difficulty(distance, elevation):
+    if distance == 0:
+        return "平坦", "★☆☆☆", 0, "平坦基調です。いつものペースで走れます。"
+        
+    # Climb Coefficient = Elevation (m) / Distance (km)
+    coeff = elevation / distance
+    
+    if coeff < 5:
+        return "平坦", "★☆☆☆", 0, "平坦基調です。いつものペースで走れます。"
+    elif 5 <= coeff < 10:
+        return "丘陵", "★★☆☆", -2, "適度なアップダウンがあります。設定速度だと少しキツイかもしれません。"
+    elif 10 <= coeff < 20:
+        return "山岳", "★★★☆", -5, "本格的な登りを含みます。設定速度だとかなりキツイ可能性があります。"
+    else: # >= 20
+        return "激坂", "★★★★", -8, "過酷なコースです！無理のないペース配分を心がけてください。"
 
 def main():
     st.set_page_config(page_title="CycleFoodApp", page_icon="🚴")
@@ -45,17 +83,40 @@ def main():
         distance = st.number_input("走行距離 (km)", min_value=0.0, max_value=1000.0, value=50.0, step=1.0)
         
     with col2:
-        elevation = st.number_input("獲得標高 (m)", min_value=0.0, max_value=10000.0, value=500.0, step=10.0)
-        intensity = st.selectbox("強度レベル", ["ポタリング", "トレーニング", "レース"])
+        elevation = st.slider(
+            "獲得標高 (m)", 
+            min_value=0, 
+            max_value=3000, 
+            value=300, 
+            step=10,
+            help="【獲得標高の目安 (100kmあたり)】\n\n・0〜300m: 平坦 (河川敷など)\n・500〜800m: 丘陵 (多摩湖・尾根幹)\n・1000m超: 山岳 (都民の森・峠)"
+        )
+        
+        # Course Diagnosis
+        label, stars, penalty, message = calculate_difficulty(distance, elevation)
+        
+        st.info(f"🚴 **コース診断: {stars} ({label})**\n\n💡 {message}")
+        
+        speed = st.slider(
+            "平均速度 (km/h)", 
+            min_value=10.0, 
+            max_value=45.0, 
+            value=22.0, 
+            step=1.0,
+            help="【速度設定のヒント】\n\n・15〜20km/h: ポタリング / 激坂を含むコース\n・20〜25km/h: 信号の多い街中 / トレーニング\n・25km/h以上: 信号のない平坦路 / レース"
+        )
+        st.caption("※山岳コースの場合は速度を下げて設定してください")
+        temperature = st.slider("気温 (℃)", min_value=0, max_value=40, value=20)
     
     # Calculate
     if st.button("計算する", type="primary"):
-        total_kcal, water_ml, carbs_g = calculate_nutrition(weight, distance, elevation, intensity)
+        total_kcal, water_ml, carbs_g, time_str = calculate_nutrition(weight, distance, elevation, temperature, speed)
         
         st.divider()
         
         # Display Results
         st.header("📊 計算結果")
+        st.subheader(f"⏱️ 予想走行時間: {time_str}")
         
         r_col1, r_col2, r_col3 = st.columns(3)
         
@@ -63,6 +124,8 @@ def main():
             st.metric("総消費カロリー", f"{int(total_kcal)} kcal")
         with r_col2:
             st.metric("必要な水分量", f"{int(water_ml)} ml")
+            if temperature >= 30:
+                st.error("※熱中症に注意！多めに持ちましょう")
         with r_col3:
             st.metric("必要糖質量", f"{int(carbs_g)} g")
             
