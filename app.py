@@ -68,7 +68,11 @@ def calculate_difficulty(distance, elevation):
         return "激坂", "★★★★", -8, "過酷なコースです！無理のないペース配分を心がけてください。"
 
 def main():
-    st.set_page_config(page_title="CycleFoodApp", page_icon="🚴")
+    st.set_page_config(
+        page_title="CycleFuel - 補給食計算機",
+        page_icon="🚴",
+        layout="centered"
+    )
     
     st.title("🚴 CycleFoodApp")
     st.markdown("サイクリングの消費カロリーと補給食の目安を計算します。")
@@ -156,7 +160,7 @@ def main():
             st.metric("総消費カロリー", f"{int(total_kcal)} kcal")
         with r_col2:
             st.metric("必要な水分量", f"{int(water_ml)} ml")
-            if temperature >= 30:
+            if st.session_state.temperature >= 30:
                 st.error("※熱中症に注意！多めに持ちましょう")
         with r_col3:
             st.metric("必要糖質量", f"{int(carbs_g)} g")
@@ -177,6 +181,10 @@ def main():
             
         with f_col2:
             st.warning(f"**エナジージェル** (1本 糖質約25g)\n\n### {gel_count:.1f} 本分")
+
+    st.markdown("---")
+    st.write("🚴 アプリの感想や、欲しい機能があれば教えてください！将来のアップデートの参考にさせていただきます。")
+    st.link_button("開発者にメッセージを送る", "https://forms.gle/isZ9S9jwhuZwc8rHA")
 
 if __name__ == "__main__":
     main()
