@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+from datetime import datetime
 
 def calculate_nutrition(weight, distance, elevation, temperature, speed):
     # Coefficients and Rates based on Speed
@@ -83,6 +85,7 @@ def main():
     if 'elevation' not in st.session_state: st.session_state.elevation = 300
     if 'speed' not in st.session_state: st.session_state.speed = 22.0
     if 'temperature' not in st.session_state: st.session_state.temperature = 20.0
+    if 'history' not in st.session_state: st.session_state.history = []
     
     # Callbacks for synchronization
     def update_weight_slider(): st.session_state.weight = st.session_state.weight_slider
@@ -161,6 +164,18 @@ def main():
             hourly_kcal = 0
             hourly_water = 0
 
+        # Save to History
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        new_record = {
+            "日時": current_time,
+            "距離 (km)": st.session_state.distance,
+            "獲得標高 (m)": st.session_state.elevation,
+            "平均速度 (km/h)": st.session_state.speed,
+            "総消費カロリー (kcal)": int(total_kcal),
+            "必要水分量 (ml)": int(water_ml)
+        }
+        st.session_state.history.append(new_record)
+
         st.divider()
         
         # Summary Section
@@ -177,27 +192,59 @@ def main():
         # Card 1: Before Ride
         with st.container(border=True):
             st.subheader("⚡ ライド前 (1〜2時間前)")
-            st.metric("目標摂取カロリー", f"{int(before_kcal)} kcal")
-            st.markdown("`炭水化物中心` `水分補給`")
-            st.caption("エネルギーを充填しましょう。おにぎり、パン、バナナなどがおすすめです。")
+            onigiri_count = before_kcal / 180
+            st.markdown(f"### {int(before_kcal)} kcal")
+            st.markdown(f"**🍙 おにぎり 約 {onigiri_count:.1f} 個分**")
+            st.caption("炭水化物中心 / 水分補給")
+            st.write("エネルギーを充填しましょう。おにぎり、パン、バナナなどがおすすめです。")
 
         # Card 2: During Ride
         with st.container(border=True):
             st.subheader("🚴 ライド中 (1時間ごと)")
+            gel_count_hourly = hourly_kcal / 100
+            bottle_count_hourly = hourly_water / 500
+            
             c2_col1, c2_col2 = st.columns(2)
             with c2_col1:
-                st.metric("カロリー / 時", f"{int(hourly_kcal)} kcal")
+                st.markdown("**⚡ エネルギー**")
+                st.markdown(f"### {int(hourly_kcal)} kcal")
+                st.markdown(f"**ジェル 約 {gel_count_hourly:.1f} 本分**")
             with c2_col2:
-                st.metric("水分 / 時", f"{int(hourly_water)} ml")
-            st.markdown("`エナジージェル` `スポーツドリンク` `塩分タブレット`")
-            st.caption("こまめな補給が重要です。喉が渇く前に飲み、空腹を感じる前に食べましょう。")
+                st.markdown("**💧 水分**")
+                st.markdown(f"### {int(hourly_water)} ml")
+                st.markdown(f"**ボトル 約 {bottle_count_hourly:.1f} 本分**")
+            
+            st.caption("エナジージェル / スポーツドリンク / 塩分タブレット")
+            st.write("こまめな補給が重要です。喉が渇く前に飲み、空腹を感じる前に食べましょう。")
 
         # Card 3: After Ride
         with st.container(border=True):
             st.subheader("☕ ライド後 (30分以内)")
-            st.metric("目標摂取カロリー", f"{int(after_kcal)} kcal")
-            st.markdown("`タンパク質` `リカバリー食`")
-            st.caption("リカバリーのゴールデンタイムです。プロテインやバランスの良い食事を摂りましょう。")
+            chicken_count = after_kcal / 120
+            st.markdown(f"### {int(after_kcal)} kcal")
+            st.markdown(f"**🍗 サラダチキン 約 {chicken_count:.1f} 個分**")
+            st.caption("タンパク質 / リカバリー食")
+            st.write("リカバリーのゴールデンタイムです。プロテインやバランスの良い食事を摂りましょう。")
+
+    # History Section
+    if st.session_state.history:
+        st.markdown("---")
+        st.header("📝 計算履歴")
+        
+        # Create DataFrame and sort by newest first
+        df_history = pd.DataFrame(st.session_state.history)
+        df_history = df_history.iloc[::-1] # Reverse order
+        
+        st.dataframe(df_history, use_container_width=True)
+        
+        # CSV Download
+        csv = df_history.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label="CSVをダウンロード",
+            data=csv,
+            file_name='cycle_fuel_plan.csv',
+            mime='text/csv',
+        )
 
     st.markdown("---")
     st.write("🚴 アプリの感想や、欲しい機能があれば教えてください！将来のアップデートの参考にさせていただきます。")
