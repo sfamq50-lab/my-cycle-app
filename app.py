@@ -49,7 +49,7 @@ def calculate_nutrition(weight, distance, elevation, temperature, speed):
         
     water_ml = duration_hours * water_rate
     
-    return total_kcal, water_ml, carbs_g, time_str
+    return total_kcal, water_ml, carbs_g, time_str, duration_hours
 
 def calculate_difficulty(distance, elevation):
     if distance == 0:
@@ -69,7 +69,7 @@ def calculate_difficulty(distance, elevation):
 
 def main():
     st.set_page_config(
-        page_title="CycleFuel - 補給食計算機",
+        page_title="CycleFuel - 補給プランナー",
         page_icon="🚴",
         layout="centered"
     )
@@ -105,16 +105,16 @@ def main():
         # Weight Sync
         w_col1, w_col2 = st.columns([0.7, 0.3])
         with w_col1:
-            st.slider("体重 (kg)", 30.0, 150.0, key='weight_slider', value=st.session_state.weight, on_change=update_weight_slider, step=0.1)
+            st.slider("体重 (kg)", 30.0, 100.0, key='weight_slider', value=st.session_state.weight, on_change=update_weight_slider, step=0.1)
         with w_col2:
-            st.number_input("体重入力", 30.0, 150.0, key='weight_input', value=st.session_state.weight, on_change=update_weight_input, step=0.1, label_visibility="collapsed")
+            st.number_input("体重入力", 30.0, 100.0, key='weight_input', value=st.session_state.weight, on_change=update_weight_input, step=0.1, label_visibility="collapsed")
         
         # Distance Sync
         d_col1, d_col2 = st.columns([0.7, 0.3])
         with d_col1:
-            st.slider("走行距離 (km)", 0.0, 600.0, key='dist_slider', value=st.session_state.distance, on_change=update_dist_slider)
+            st.slider("走行距離 (km)", 0.0, 300.0, key='dist_slider', value=st.session_state.distance, on_change=update_dist_slider)
         with d_col2:
-            st.number_input("距離入力", 0.0, 600.0, key='dist_input', value=st.session_state.distance, on_change=update_dist_input, step=1.0, label_visibility="collapsed")
+            st.number_input("距離入力", 0.0, 300.0, key='dist_input', value=st.session_state.distance, on_change=update_dist_input, step=1.0, label_visibility="collapsed")
         
     with col2:
         # Elevation Sync
@@ -146,41 +146,58 @@ def main():
     
     # Calculate
     if st.button("計算する", type="primary"):
-        total_kcal, water_ml, carbs_g, time_str = calculate_nutrition(st.session_state.weight, st.session_state.distance, st.session_state.elevation, st.session_state.temperature, st.session_state.speed)
+        total_kcal, water_ml, carbs_g, time_str, duration_hours = calculate_nutrition(st.session_state.weight, st.session_state.distance, st.session_state.elevation, st.session_state.temperature, st.session_state.speed)
         
+        # Calculate Phase Allocations
+        before_kcal = total_kcal * 0.2
+        during_kcal = total_kcal * 0.6
+        after_kcal = total_kcal * 0.2
+        
+        # Calculate Hourly Rates for During Ride
+        if duration_hours > 0:
+            hourly_kcal = during_kcal / duration_hours
+            hourly_water = water_ml / duration_hours
+        else:
+            hourly_kcal = 0
+            hourly_water = 0
+
         st.divider()
         
-        # Display Results
+        # Summary Section
         st.header("📊 計算結果")
-        st.subheader(f"⏱️ 予想走行時間: {time_str}")
         
-        r_col1, r_col2, r_col3 = st.columns(3)
-        
-        with r_col1:
+        s_col1, s_col2 = st.columns(2)
+        with s_col1:
             st.metric("総消費カロリー", f"{int(total_kcal)} kcal")
-        with r_col2:
-            st.metric("必要な水分量", f"{int(water_ml)} ml")
-            if st.session_state.temperature >= 30:
-                st.error("※熱中症に注意！多めに持ちましょう")
-        with r_col3:
-            st.metric("必要糖質量", f"{int(carbs_g)} g")
+        with s_col2:
+            st.metric("予想走行時間", time_str)
             
-        st.subheader("🍙 補給食の目安")
+        st.subheader("🍽️ 栄養プランカード")
         
-        # Food conversion
-        # Onigiri: ~40g carbs
-        # Gel: ~25g carbs
-        
-        onigiri_count = carbs_g / 40
-        gel_count = carbs_g / 25
-        
-        f_col1, f_col2 = st.columns(2)
-        
-        with f_col1:
-            st.info(f"**おにぎり** (1個 糖質約40g)\n\n### {onigiri_count:.1f} 個分")
-            
-        with f_col2:
-            st.warning(f"**エナジージェル** (1本 糖質約25g)\n\n### {gel_count:.1f} 本分")
+        # Card 1: Before Ride
+        with st.container(border=True):
+            st.subheader("⚡ ライド前 (1〜2時間前)")
+            st.metric("目標摂取カロリー", f"{int(before_kcal)} kcal")
+            st.markdown("`炭水化物中心` `水分補給`")
+            st.caption("エネルギーを充填しましょう。おにぎり、パン、バナナなどがおすすめです。")
+
+        # Card 2: During Ride
+        with st.container(border=True):
+            st.subheader("🚴 ライド中 (1時間ごと)")
+            c2_col1, c2_col2 = st.columns(2)
+            with c2_col1:
+                st.metric("カロリー / 時", f"{int(hourly_kcal)} kcal")
+            with c2_col2:
+                st.metric("水分 / 時", f"{int(hourly_water)} ml")
+            st.markdown("`エナジージェル` `スポーツドリンク` `塩分タブレット`")
+            st.caption("こまめな補給が重要です。喉が渇く前に飲み、空腹を感じる前に食べましょう。")
+
+        # Card 3: After Ride
+        with st.container(border=True):
+            st.subheader("☕ ライド後 (30分以内)")
+            st.metric("目標摂取カロリー", f"{int(after_kcal)} kcal")
+            st.markdown("`タンパク質` `リカバリー食`")
+            st.caption("リカバリーのゴールデンタイムです。プロテインやバランスの良い食事を摂りましょう。")
 
     st.markdown("---")
     st.write("🚴 アプリの感想や、欲しい機能があれば教えてください！将来のアップデートの参考にさせていただきます。")
